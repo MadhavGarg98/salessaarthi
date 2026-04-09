@@ -1,6 +1,6 @@
 const admin = require('firebase-admin');
 
-// Initialize Firebase with environment variables
+// Initialize Firebase with environment variables - v2.0
 const serviceAccount = {
   type: process.env.FIREBASE_TYPE,
   project_id: process.env.FIREBASE_PROJECT_ID,
