@@ -4,8 +4,6 @@ import {
   Search,
   Send,
   Smile,
-  Check,
-  CheckCheck,
   Bot,
   User,
   ArrowLeft,
@@ -170,9 +168,6 @@ const Chats: React.FC = () => {
     chat.phone.includes(searchQuery)
   );
 
-  const formatMessageTime = (timestamp: string) => {
-    return timestamp;
-  };
 
   if (loading) {
     return (

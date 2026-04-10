@@ -7,8 +7,6 @@ import {
   Trash2,
   X,
   Search,
-  Filter,
-  TrendingUp,
   AlertCircle,
   CheckCircle
 } from 'lucide-react';
@@ -110,11 +108,6 @@ const Products: React.FC = () => {
     setShowModal(false);
   };
 
-  const getStockStatus = (stock: number) => {
-    if (stock === 0) return { label: 'Out of Stock', color: 'bg-red-100 text-red-800', icon: <AlertCircle size={14} /> };
-    if (stock <= 10) return { label: 'Low Stock', color: 'bg-amber-100 text-amber-800', icon: <AlertCircle size={14} /> };
-    return { label: 'In Stock', color: 'bg-emerald-100 text-emerald-800', icon: <CheckCircle size={14} /> };
-  };
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = (product.name?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||

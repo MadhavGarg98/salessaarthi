@@ -3,14 +3,10 @@ import { motion } from 'framer-motion';
 import {
   ShoppingCart,
   Search,
-  Filter,
   CheckCircle,
   Clock,
   XCircle,
   TrendingUp,
-  Calendar,
-  User,
-  Package,
   ArrowRight
 } from 'lucide-react';
 import { getOrders, updateOrderStatus } from '../services/api';
@@ -360,7 +356,6 @@ const Orders: React.FC = () => {
             gap: '1rem'
           }}>
             {filteredOrders.map((order, index) => {
-              const statusInfo = getStatusInfo(order.status);
               return (
                 <motion.div
                   key={index}
