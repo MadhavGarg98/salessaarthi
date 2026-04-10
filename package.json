@@ -1,0 +1,18 @@
+{
+  "name": "salessaarthi-fullstack",
+  "version": "1.0.0",
+  "description": "AI WhatsApp Sales Assistant - Full Stack Application",
+  "main": "start.sh",
+  "scripts": {
+    "start": "chmod +x start.sh && ./start.sh",
+    "build": "cd backend && npm install",
+    "dev": "cd backend && npm run dev"
+  },
+  "keywords": ["whatsapp", "ai", "twilio", "sales", "chatbot", "fullstack"],
+  "author": "Team Dhara",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}
