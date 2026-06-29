@@ -100,35 +100,6 @@ const Orders: React.FC = () => {
     }
   };
 
-  const getStatusInfo = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return {
-          label: 'Paid',
-          color: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-          icon: <CheckCircle size={14} />
-        };
-      case 'pending':
-        return {
-          label: 'Pending',
-          color: 'bg-amber-100 text-amber-800 border-amber-200',
-          icon: <Clock size={14} />
-        };
-      case 'cancelled':
-        return {
-          label: 'Cancelled',
-          color: 'bg-red-100 text-red-800 border-red-200',
-          icon: <XCircle size={14} />
-        };
-      default:
-        return {
-          label: status,
-          color: 'bg-slate-100 text-slate-800 border-slate-200',
-          icon: <Clock size={14} />
-        };
-    }
-  };
-
   const filteredOrders = orders.filter(order => {
     const matchesSearch = (order.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
                          (getProductName(order.product)?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||

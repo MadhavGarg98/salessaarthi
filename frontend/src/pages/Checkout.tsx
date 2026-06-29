@@ -9,7 +9,6 @@ import {
   MapPin,
   User,
   Phone,
-  ArrowLeft,
   CreditCard
 } from 'lucide-react';
 
@@ -40,6 +39,7 @@ const Checkout: React.FC<CheckoutProps> = ({ orderId }) => {
 
   useEffect(() => {
     fetchOrderAndSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
   const fetchOrderAndSettings = async () => {

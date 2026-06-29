@@ -6,9 +6,7 @@ import {
   Edit2,
   Trash2,
   X,
-  Search,
-  AlertCircle,
-  CheckCircle
+  Search
 } from 'lucide-react';
 import { getProducts, addProduct, updateProduct, deleteProduct } from '../services/api';
 
