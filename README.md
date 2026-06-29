@@ -1,5 +1,8 @@
 # AI WhatsApp Sales Assistant for Small Businesses
 
+[![Frontend Dashboard](https://img.shields.io/badge/Vercel-Frontend-black?style=for-the-badge&logo=vercel)](https://salessaarthi.vercel.app/)
+[![Backend Server](https://img.shields.io/badge/Render-Backend-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://salessaarthi-8iue.onrender.com)
+
 A complete full-stack system where customers interact via WhatsApp, and an AI assistant automatically handles sales, replies, product queries, and lead generation. Includes a business dashboard for analytics and product management.
 
 ## Deployed Links
