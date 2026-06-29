@@ -4,8 +4,6 @@ import {
   ShoppingCart,
   Search,
   CheckCircle,
-  Clock,
-  XCircle,
   TrendingUp,
   ArrowRight
 } from 'lucide-react';
