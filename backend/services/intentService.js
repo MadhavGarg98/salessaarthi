@@ -91,6 +91,17 @@ function detectGlobalCommand(message) {
  * Detect menu flow intent
  */
 async function detectMenuIntent(message) {
+  // Handle menu option numbers first (1 = Browse, 2 = Track, 3 = Support)
+  if (message === '1' || message === '1.' || message === 'one') {
+    return { type: 'BROWSE_PRODUCTS', data: null };
+  }
+  if (message === '2' || message === '2.' || message === 'two') {
+    return { type: 'TRACK', data: null };
+  }
+  if (message === '3' || message === '3.' || message === 'three') {
+    return { type: 'HELP', data: null };
+  }
+
   // Fast exact matches first
   if (message === 'browse' || message === 'products' || message === 'shop') {
     return { type: 'BROWSE_PRODUCTS', data: null };
@@ -140,6 +151,9 @@ async function detectBrowsingIntent(message) {
   if (message === 'back' || message === 'menu') {
     return { type: 'MENU', data: null };
   }
+  if (message === 'browse' || message === 'products' || message === 'shop') {
+    return { type: 'BROWSE_PRODUCTS', data: null };
+  }
   
   // Product selection (cached)
   const product = await detectProductSelection(message);
@@ -150,6 +164,13 @@ async function detectBrowsingIntent(message) {
   // Back to menu
   if (message.includes('back') || message.includes('menu')) {
     return { type: 'MENU', data: null };
+  }
+  
+  // Browse products check
+  if (message.includes('browse') || message.includes('product') || 
+      message.includes('list') || message.includes('shop') || 
+      message.includes('catalog') || message.includes('see')) {
+    return { type: 'BROWSE_PRODUCTS', data: null };
   }
   
   // More details

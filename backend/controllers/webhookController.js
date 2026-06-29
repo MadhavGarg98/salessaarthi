@@ -3,6 +3,7 @@
  * Complete implementation with human-like conversation and payment processing
  */
 
+const { db } = require('../firebase');
 const { sendWhatsAppMessage } = require('../services/twilioService');
 const { getUserState, updateUserState } = require('../services/stateService');
 const { detectIntent } = require('../services/intentService');
@@ -14,6 +15,43 @@ const {
   generateOrderConfirmation,
   storeOrder
 } = require('../services/paymentService');
+
+/**
+ * Save chat message to database and update user info
+ * @param {string} phone - User phone number
+ * @param {string} message - User message
+ * @param {string} reply - Bot reply
+ * @param {string} flow - Current flow
+ */
+async function saveChatAndUser(phone, message, reply, flow) {
+  try {
+    // 1. Save to chats collection
+    await db.collection('chats').add({
+      userId: phone,
+      message: message,
+      reply: reply,
+      timestamp: new Date()
+    });
+
+    // 2. Determine stage for analytics
+    let stage = 'new';
+    if (flow === 'ORDER' || flow === 'PAYMENT') {
+      stage = 'interested';
+    } else if (flow === 'MENU' && reply && (reply.includes('Payment Successful') || reply.includes('Payment received') || reply.includes('Order confirmed'))) {
+      stage = 'converted';
+    }
+
+    // 3. Save/Update user in users collection
+    await db.collection('users').doc(phone).set({
+      phone: phone,
+      stage: stage,
+      lastMessage: new Date(),
+      updatedAt: new Date()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error saving chat/user to Firestore:', error);
+  }
+}
 
 /**
  * Handle incoming WhatsApp webhook
@@ -50,6 +88,7 @@ const handleWebhook = async (req, res) => {
       const result = await generateResponse(intent, userState, message);
       if (result.stateUpdates) updateUserState(userPhone, result.stateUpdates);
       await sendWhatsAppMessage(userPhone, result.message);
+      saveChatAndUser(userPhone, message, result.message, 'MENU').catch(() => {});
       return res.set('Content-Type', 'text/xml').send('<Response></Response>');
     }
 
@@ -59,6 +98,7 @@ const handleWebhook = async (req, res) => {
       const result = await generateResponse(intent, userState, message);
       if (result.stateUpdates) updateUserState(userPhone, result.stateUpdates);
       await sendWhatsAppMessage(userPhone, result.message);
+      saveChatAndUser(userPhone, message, result.message, 'MENU').catch(() => {});
       return res.set('Content-Type', 'text/xml').send('<Response></Response>');
     }
 
@@ -73,6 +113,66 @@ const handleWebhook = async (req, res) => {
       sendWhatsAppMessage(userPhone, "Got it! 👍 Processing...").catch(() => {});
     }
 
+    // Handle paid payment verification flow
+    if (normalizedMessage.startsWith("paid")) {
+      const digits = message.split(" ")[1];
+      
+      if (digits && digits.length === 4) {
+        // Step 1: Show processing message
+        await sendWhatsAppMessage(userPhone, "\u23F3 Verifying your payment, please wait...");
+        
+        // Step 2: Fake delay (4-5 sec)
+        setTimeout(async () => {
+          const txnId = "TXN" + Math.floor(Math.random() * 1000000);
+          const orderId = "ORD" + Math.floor(Math.random() * 10000);
+          
+          // Create order data
+          const orderData = {
+            orderId: orderId,
+            product: userState.selectedProduct,
+            name: userState.tempData.name,
+            address: userState.tempData.address,
+            phone: userState.tempData.phone,
+            amount: userState.selectedProduct.price
+          };
+          
+          // Store order
+          await storeOrder(orderData);
+          
+          // Step 3: Final confirmation message
+          await sendWhatsAppMessage(userPhone, 
+`\ud83c\udf89 Payment Successful!
+
+\ud83d\udcbe Transaction ID: ${txnId}
+\ud83d\udce6 Order ID: ${orderId}
+
+\u2705 Your order has been confirmed.
+
+\ud83d\udce6 Product: ${userState.selectedProduct.name}
+\ud83d\ude9a Delivery Address: ${userState.tempData.address}
+
+We'll notify you once it's shipped \ud83d\ude80
+
+Thank you for choosing SalesSaarthi \ud83d\udc99`
+          );
+          
+          // Reset state after successful order
+          updateUserState(userPhone, {
+            currentFlow: 'MENU',
+            step: 'MENU_MAIN',
+            selectedProduct: null,
+            awaitingPayment: false,
+            tempData: {}
+          });
+
+          // Save chat history and update user stage to converted
+          saveChatAndUser(userPhone, message, "Payment Successful! Order confirmed.", 'MENU').catch(() => {});
+        }, 4000); // 4 sec delay
+        
+        return res.set('Content-Type', 'text/xml').send('<Response></Response>');
+      }
+    }
+    
     // Handle payment verification delay
     if (userState.step === 'PAYMENT_VERIFYING') {
       await simulateVerificationDelay(3);
@@ -96,7 +196,7 @@ const handleWebhook = async (req, res) => {
           };
           
           // Store order
-          storeOrder(orderData);
+          await storeOrder(orderData);
           
           // Generate confirmation message
           response = generateOrderConfirmation(
@@ -114,26 +214,32 @@ const handleWebhook = async (req, res) => {
             tempData: {}
           });
           shouldUpdateState = false; // Already updated above
+
+          // Save chat history and update user stage to converted
+          saveChatAndUser(userPhone, message, response, 'MENU').catch(() => {});
         } else {
           response = paymentResult.message;
         }
       }
     } else {
-      // Parallel execution for intent detection and response generation
-      const [intent, result] = await Promise.all([
-        detectIntent(message, userState),
-        generateResponse({ type: 'UNKNOWN', data: null }, userState, message)
-      ]);
+      // Detect intent using rule-based service first
+      const intent = await detectIntent(message, userState);
       
-      // Generate proper response if intent was detected
-      const finalResult = intent.type !== 'UNKNOWN' ? 
-        await generateResponse(intent, userState, message) : result;
-      
-      response = finalResult.message;
-      
-      // Update state if needed
-      if (shouldUpdateState && finalResult.stateUpdates) {
-        updateUserState(userPhone, finalResult.stateUpdates);
+      if (intent.type !== 'UNKNOWN') {
+        const finalResult = await generateResponse(intent, userState, message);
+        response = finalResult.message;
+        
+        // Update state if needed
+        if (shouldUpdateState && finalResult.stateUpdates) {
+          updateUserState(userPhone, finalResult.stateUpdates);
+        }
+      } else {
+        // Fallback to AI Service for human-like response
+        const { getAllProducts } = require('../services/productService');
+        const products = await getAllProducts();
+        
+        const aiService = require('../services/aiService');
+        response = await aiService.generateResponse(message, products, userState);
       }
     }
 
@@ -144,6 +250,9 @@ const handleWebhook = async (req, res) => {
 
     // Send response via Twilio
     await sendWhatsAppMessage(userPhone, response);
+
+    // Save chat history and update user (non-blocking)
+    saveChatAndUser(userPhone, message, response, userState.currentFlow).catch(() => {});
 
     // Return empty TwiML response
     res.set('Content-Type', 'text/xml');

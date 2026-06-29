@@ -151,9 +151,6 @@ const TopBar: React.FC<TopBarProps> = ({ title }) => {
                   <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>2 minutes ago</p>
                 </div>
                 <div style={{ padding: '1rem', background: 'transparent', borderBottom: 'none' }}>
-                  <p style={{ fontSize: '0.875rem', color: '#334155' }}>Payment received</p>
-                  <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>Order #1234 payment confirmed</p>
-                  <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>15 minutes ago</p>
                   <div className="flex items-start space-x-3">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2"></div>
                     <div className="flex-1">

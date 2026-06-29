@@ -25,6 +25,7 @@ const productRoutes = require('./routes/products');
 const analyticsRoutes = require('./routes/analytics');
 const orderRoutes = require('./routes/orders');
 const paymentRoutes = require('./routes/payment');
+const chatRoutes = require('./routes/chats');
 
 // Use routes
 app.use('/webhook', webhookRoutes);
@@ -32,6 +33,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/chats', chatRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

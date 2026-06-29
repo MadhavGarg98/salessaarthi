@@ -3,7 +3,15 @@
  * Handles order creation, management, and tracking
  */
 
-const { db } = require('../firebase');
+const firebase = require('../firebase');
+const db = {
+  collection: (...args) => {
+    if (!firebase.db) {
+      throw new Error('Database is not initialized in firebase.js');
+    }
+    return firebase.db.collection(...args);
+  }
+};
 
 /**
  * Create new order
@@ -98,13 +106,21 @@ async function getOrdersByPhone(phone) {
   try {
     const ordersSnapshot = await db.collection('orders')
       .where('phone', '==', phone)
-      .orderBy('createdAt', 'desc')
       .get();
 
-    return ordersSnapshot.docs.map(doc => ({
+    const orders = ordersSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
+
+    // Sort manually by createdAt desc in JS to avoid requiring a Firestore composite index
+    orders.sort((a, b) => {
+      const timeA = a.createdAt ? (typeof a.createdAt.toDate === 'function' ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime()) : 0;
+      const timeB = b.createdAt ? (typeof b.createdAt.toDate === 'function' ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime()) : 0;
+      return timeB - timeA;
+    });
+
+    return orders;
   } catch (error) {
     console.error('Error fetching orders by phone:', error);
     return [];
@@ -197,11 +213,13 @@ async function getOrderStats() {
     today.setHours(0, 0, 0, 0);
 
     allOrders.forEach(order => {
-      const orderDate = order.createdAt.toDate();
-      if (orderDate >= today) {
-        stats.todayOrders++;
-        if (order.status === 'paid') {
-          stats.todayRevenue += order.price;
+      if (order.createdAt && typeof order.createdAt.toDate === 'function') {
+        const orderDate = order.createdAt.toDate();
+        if (orderDate >= today) {
+          stats.todayOrders++;
+          if (order.status === 'paid') {
+            stats.todayRevenue += order.price;
+          }
         }
       }
     });

@@ -13,8 +13,29 @@ const client = twilio(
  */
 const sendWhatsAppMessage = async (to, message) => {
   try {
-    // Check if 'to' already contains 'whatsapp:' prefix
-    const recipient = to.includes('whatsapp:') ? to : `whatsapp:${to}`;
+    // Clean the phone number (remove any non-digits, except '+' if present)
+    let cleanPhone = to.trim();
+    
+    // Check if it already has 'whatsapp:' prefix and extract the number part
+    if (cleanPhone.startsWith('whatsapp:')) {
+      cleanPhone = cleanPhone.replace('whatsapp:', '');
+    }
+    
+    // Remove all non-numeric characters except leading plus
+    const hasPlus = cleanPhone.startsWith('+');
+    cleanPhone = cleanPhone.replace(/\D/g, '');
+    if (hasPlus) {
+      cleanPhone = '+' + cleanPhone;
+    }
+    
+    // If it's a 10-digit number, prepend the Indian country code +91
+    if (cleanPhone.length === 10) {
+      cleanPhone = `+91${cleanPhone}`;
+    } else if (!cleanPhone.startsWith('+')) {
+      cleanPhone = `+${cleanPhone}`;
+    }
+    
+    const recipient = `whatsapp:${cleanPhone}`;
     
     const response = await client.messages.create({
       body: message,

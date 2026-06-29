@@ -5,11 +5,20 @@ import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import Orders from './pages/Orders';
 import Chats from './pages/Chats';
+import Checkout from './pages/Checkout';
 
 type Page = 'dashboard' | 'products' | 'orders' | 'chats' | 'analytics';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+
+  const path = window.location.pathname;
+  const isCheckoutPage = path.startsWith('/pay/');
+  const checkoutOrderId = isCheckoutPage ? path.split('/pay/')[1] : null;
+
+  if (isCheckoutPage) {
+    return <Checkout orderId={checkoutOrderId} />;
+  }
 
   const getPageTitle = () => {
     switch (currentPage) {
@@ -47,7 +56,7 @@ function App() {
 
   // Chats page has full-screen layout, others use sidebar layout
   if (currentPage === 'chats') {
-    return <Chats />;
+    return <Chats onBack={() => setCurrentPage('dashboard')} />;
   }
 
   return (

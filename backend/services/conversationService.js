@@ -77,13 +77,14 @@ async function generateResponse(intent, userState, message) {
   }
   
   // Handle flow-specific intents
-  switch (userState.currentFlow) {
+  const flow = userState.currentFlow || FLOWS.MENU;
+  switch (flow) {
     case FLOWS.MENU:
       return handleMenuFlow(intent, userState);
     case FLOWS.BROWSING:
       return handleBrowsingFlow(intent, userState);
     case FLOWS.ORDER:
-      return handleOrderFlow(intent, userState, message);
+      return await handleOrderFlow(intent, userState, message);
     case FLOWS.PAYMENT:
       return handlePaymentFlow(intent, userState);
     case FLOWS.SUPPORT:
@@ -142,6 +143,16 @@ async function handleMenuFlow(intent, userState) {
  */
 async function handleBrowsingFlow(intent, userState) {
   switch (intent.type) {
+    case 'BROWSE_PRODUCTS':
+      return {
+        message: await getProductListMessage(),
+        stateUpdates: {
+          currentFlow: FLOWS.BROWSING,
+          step: STEPS.BROWSING_PRODUCTS,
+          selectedProduct: null
+        }
+      };
+
     case 'SELECT_PRODUCT':
       return {
         message: getProductDetailMessage(intent.data),
@@ -189,7 +200,7 @@ async function handleBrowsingFlow(intent, userState) {
 /**
  * Handle order flow
  */
-function handleOrderFlow(intent, userState, message) {
+async function handleOrderFlow(intent, userState, message) {
   switch (userState.step) {
     case STEPS.ORDER_NAME:
       return {
@@ -226,14 +237,41 @@ function handleOrderFlow(intent, userState, message) {
       
     case STEPS.ORDER_CONFIRM:
       if (message.toLowerCase().includes('yes')) {
-        return {
-          message: getPaymentMessage(userState.selectedProduct),
-          stateUpdates: {
-            currentFlow: FLOWS.PAYMENT,
-            step: STEPS.PAYMENT_AWAITING,
-            awaitingPayment: true
-          }
-        };
+        const { createOrder } = require('./orderService');
+        try {
+          // Create a pending order in Firestore immediately
+          const orderId = await createOrder({
+            phone: userState.phone || userState.tempData.phone,
+            name: userState.tempData.name,
+            address: userState.tempData.address,
+            product: userState.selectedProduct
+          });
+
+          // Generate the secure checkout URL
+          const baseUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
+          const checkoutUrl = `${baseUrl}/pay/${orderId}`;
+
+          const paymentMsg = `🎉 *Order Created Successfully!*\n\n` +
+            `To complete your purchase, please click the secure link below to pay via *Google Pay, PhonePe, Paytm*, or scan the QR code:\n\n` +
+            `🔗 ${checkoutUrl}\n\n` +
+            `Once the payment is completed on the webpage, your order will be automatically confirmed here! 🛍️`;
+
+          return {
+            message: paymentMsg,
+            stateUpdates: {
+              currentFlow: FLOWS.PAYMENT,
+              step: STEPS.PAYMENT_AWAITING,
+              awaitingPayment: true,
+              activeOrderId: orderId
+            }
+          };
+        } catch (error) {
+          console.error('Failed to create order in conversation flow:', error);
+          return {
+            message: "⚠️ Sorry, I encountered an issue creating your order. Please try again or type MENU.",
+            stateUpdates: {}
+          };
+        }
       } else {
         return {
           message: "No problem! Let's start over. What would you like to do? \u{2728}\n\n" + getWelcomeMessage(),
@@ -258,17 +296,15 @@ function handleOrderFlow(intent, userState, message) {
  * Handle payment flow
  */
 async function handlePaymentFlow(intent, userState) {
-  if (intent.type === 'PAYMENT_CONFIRMATION') {
-    return {
-        message: "\u{1F50D} Verifying your payment...",
-      stateUpdates: {
-        step: STEPS.PAYMENT_VERIFYING
-      }
-    };
-  }
-  
+  const orderId = userState.activeOrderId || '';
+  const baseUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
+  const checkoutUrl = orderId ? `${baseUrl}/pay/${orderId}` : `${baseUrl}`;
+
   return {
-    message: await getPaymentMessage(userState.selectedProduct),
+    message: `⏳ *Awaiting Payment Confirmation*\n\n` +
+      `Please complete your payment using the secure link below:\n` +
+      `🔗 ${checkoutUrl}\n\n` +
+      `Once paid, this chat will automatically update! If you want to cancel, type *CANCEL*.`,
     stateUpdates: {}
   };
 }
@@ -296,9 +332,9 @@ function handleSupportFlow(intent, userState, message) {
 function getWelcomeMessage() {
   return "Hey \u{1F44B} I'm your Sales Assistant! What are you looking for today?\n\n" +
          "You can:\n" +
-         "\u{1F6D2} Browse products\n" +
-         "\u{1F4E6} Track order\n" +
-         "\u{1F4DE} Talk to support\n\n" +
+         "1. \u{1F6D2} Browse products\n" +
+         "2. \u{1F4E6} Track order\n" +
+         "3. \u{1F4DE} Talk to support\n\n" +
          "Just tell me what you'd like to do!";
 }
 
@@ -376,8 +412,9 @@ function getOrderConfirmationMessage(product, name, address, phone) {
 /**
  * Payment message
  */
-function getPaymentMessage(product) {
-  const upiId = "madhavgarg3300@okhdfcbank";
+async function getPaymentMessage(product) {
+  const { getUPIId } = require('./paymentService');
+  const upiId = await getUPIId();
   const upiLink = `upi://pay?pa=${upiId}&pn=SalesSaarthi&am=${product.price}&cu=INR`;
   const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiLink)}`;
   

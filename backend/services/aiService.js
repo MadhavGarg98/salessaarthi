@@ -37,9 +37,10 @@ class AIService {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
         ],
-        model: 'llama3-70b-8192',
+        model: 'llama-3.1-8b-instant',
         temperature: 0.7,
-        max_tokens: 150,
+        max_tokens: 150
+      }, {
         timeout: 5000 // 5 second timeout
       });
 
@@ -130,8 +131,9 @@ Examples:
       // Test with a simple request
       await this.groq.chat.completions.create({
         messages: [{ role: 'user', content: 'test' }],
-        model: 'llama3-70b-8192',
-        max_tokens: 1,
+        model: 'llama-3.1-8b-instant',
+        max_tokens: 1
+      }, {
         timeout: 3000
       });
 

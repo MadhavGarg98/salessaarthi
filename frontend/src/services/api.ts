@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -67,6 +67,16 @@ export const deleteProduct = async (id: string) => {
 export const getRecentChats = async () => {
   const response = await api.get('/api/chats');
   return response.data.recentChats;
+};
+
+export const getChatMessages = async (phone: string) => {
+  const response = await api.get(`/api/chats/${phone}/messages`);
+  return response.data.messages;
+};
+
+export const sendChatMessage = async (phone: string, message: string) => {
+  const response = await api.post(`/api/chats/${phone}/messages`, { message });
+  return response.data.data;
 };
 
 export default api;

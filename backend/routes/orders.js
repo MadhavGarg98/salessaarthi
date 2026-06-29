@@ -211,12 +211,34 @@ router.get('/phone/:phone', async (req, res) => {
 router.post('/:id/mark-paid', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Fetch the order first to get the customer's phone number
+    const order = await orderService.getOrderById(id);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: 'Order not found'
+      });
+    }
+
     const success = await orderService.markOrderAsPaid(id);
     
     if (success) {
+      // Send WhatsApp confirmation to the customer
+      const { sendWhatsAppMessage } = require('../services/twilioService');
+      const confirmationMsg = `🎉 *Payment Successful!*\n\n` +
+        `Your order *#${id.substring(0, 8)}* for *${order.productName || 'your items'}* has been confirmed. \n\n` +
+        `We are preparing your package and will notify you once it's shipped! Thank you for shopping with us! 🛍️`;
+      
+      try {
+        await sendWhatsAppMessage(order.phone, confirmationMsg);
+      } catch (whatsappErr) {
+        console.error('Failed to send WhatsApp payment confirmation:', whatsappErr);
+      }
+
       res.json({
         success: true,
-        message: 'Order marked as paid'
+        message: 'Order marked as paid and confirmation message sent'
       });
     } else {
       res.status(500).json({

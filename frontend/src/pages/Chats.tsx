@@ -10,6 +10,7 @@ import {
   MessageSquare,
   X
 } from 'lucide-react';
+import { getRecentChats, getChatMessages, sendChatMessage } from '../services/api';
 
 interface Chat {
   id: string;
@@ -30,137 +31,92 @@ interface Message {
   status?: 'sent' | 'delivered' | 'read';
 }
 
-const Chats: React.FC = () => {
+interface ChatsProps {
+  onBack?: () => void;
+}
+
+const Chats: React.FC<ChatsProps> = ({ onBack }) => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   useEffect(() => {
     fetchChats();
+    const interval = setInterval(() => {
+      fetchChats();
+    }, 5000); // Poll chat list every 5 seconds
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchChats = async () => {
-    // Mock data - replace with actual API call
-    const mockChats: Chat[] = [
-      {
-        id: '1',
-        customerName: 'John Doe',
-        phone: '+1234567890',
-        lastMessage: 'Is iPhone 15 still available?',
-        lastMessageTime: '2 min ago',
-        unreadCount: 2,
-        isActive: true,
-      },
-      {
-        id: '2',
-        customerName: 'Jane Smith',
-        phone: '+0987654321',
-        lastMessage: 'Thank you for your help!',
-        lastMessageTime: '15 min ago',
-        unreadCount: 0,
-        isActive: false,
-      },
-      {
-        id: '3',
-        customerName: 'Mike Johnson',
-        phone: '+1122334455',
-        lastMessage: 'What are your payment options?',
-        lastMessageTime: '1 hour ago',
-        unreadCount: 1,
-        isActive: true,
-      },
-      {
-        id: '4',
-        customerName: 'Sarah Wilson',
-        phone: '+5544332211',
-        lastMessage: 'Can I get a discount on bulk order?',
-        lastMessageTime: '2 hours ago',
-        unreadCount: 0,
-        isActive: false,
-      },
-    ];
+  useEffect(() => {
+    if (!selectedChat) return;
+    fetchMessages(selectedChat.phone);
+    const interval = setInterval(() => {
+      fetchMessages(selectedChat.phone);
+    }, 3000); // Poll current chat messages every 3 seconds
+    return () => clearInterval(interval);
+  }, [selectedChat]);
 
-    setChats(mockChats);
-    setLoading(false);
+  const fetchChats = async () => {
+    try {
+      const recentChats = await getRecentChats();
+      setChats(recentChats);
+    } catch (error) {
+      console.error('Failed to fetch chats:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChatSelect = (chat: Chat) => {
     setSelectedChat(chat);
-    fetchMessages(chat.id);
+    fetchMessages(chat.phone);
     // Mark as read
     setChats(prev => prev.map(c => 
       c.id === chat.id ? { ...c, unreadCount: 0 } : c
     ));
   };
 
-  const fetchMessages = async (chatId: string) => {
-    // Mock data - replace with actual API call
-    const mockMessages: Message[] = [
-      {
-        id: '1',
-        text: 'Hi! I\'m interested in your products',
-        sender: 'user',
-        timestamp: '10:30 AM',
-        status: 'read'
-      },
-      {
-        id: '2',
-        text: 'Hello! Welcome to SalesSaarthi AI. How can I help you today?',
-        sender: 'bot',
-        timestamp: '10:31 AM'
-      },
-      {
-        id: '3',
-        text: 'Do you have the latest iPhone models?',
-        sender: 'user',
-        timestamp: '10:32 AM',
-        status: 'read'
-      },
-      {
-        id: '4',
-        text: 'Yes! We have iPhone 15 Pro and Pro Max in stock. Would you like to know the pricing?',
-        sender: 'bot',
-        timestamp: '10:33 AM'
-      },
-      {
-        id: '5',
-        text: 'Is the iPhone 15 still available?',
-        sender: 'user',
-        timestamp: '10:35 AM',
-        status: 'delivered'
-      },
-    ];
-
-    setMessages(mockMessages);
+  const fetchMessages = async (phone: string) => {
+    try {
+      const chatMessages = await getChatMessages(phone);
+      setMessages(chatMessages);
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+    }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedChat) return;
 
-    const newMsg: Message = {
-      id: Date.now().toString(),
-      text: newMessage,
-      sender: 'user',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'sent'
-    };
-
-    setMessages(prev => [...prev, newMsg]);
+    const messageText = newMessage.trim();
     setNewMessage('');
 
-    // Simulate bot response
-    setTimeout(() => {
-      const botResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        text: 'Thank you for your message. Our team will get back to you soon!',
-        sender: 'bot',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages(prev => [...prev, botResponse]);
-    }, 1000);
+    try {
+      const responseMsg = await sendChatMessage(selectedChat.phone, messageText);
+      setMessages(prev => [...prev, responseMsg]);
+      
+      // Update the last message in the chat list
+      setChats(prev => prev.map(c => 
+        c.phone === selectedChat.phone 
+          ? { ...c, lastMessage: messageText, lastMessageTime: 'Just now' } 
+          : c
+      ));
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
   };
 
   const filteredChats = chats.filter(chat =>
@@ -216,12 +172,34 @@ const Chats: React.FC = () => {
           padding: '1rem',
           borderBottom: '1px solid #e2e8f0'
         }}>
-          <h2 style={{
-            fontSize: '1.25rem',
-            fontWeight: 'bold',
-            color: '#1e293b',
-            marginBottom: '0.5rem'
-          }}>Chats</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            {onBack && (
+              <button 
+                onClick={onBack}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: '#4f46e5',
+                  borderRadius: '0.375rem',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                <ArrowLeft size={20} />
+              </button>
+            )}
+            <h2 style={{
+              fontSize: '1.25rem',
+              fontWeight: 'bold',
+              color: '#1e293b',
+              margin: 0
+            }}>Chats</h2>
+          </div>
           <div style={{ position: 'relative' }}>
             <div style={{
               position: 'absolute',
@@ -334,10 +312,11 @@ const Chats: React.FC = () => {
                       <User size={24} style={{ color: 'white' }} />
                     )}
                   </div>
-                  <div style={{
-                    marginLeft: '0.75rem',
-                    flex: 1
-                  }}>
+                </div>
+                <div style={{
+                  marginLeft: '0.75rem',
+                  flex: 1
+                }}>
                     <div style={{
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -386,7 +365,6 @@ const Chats: React.FC = () => {
                       {chat.lastMessage}
                     </div>
                   </div>
-                </div>
                 {chat.unreadCount > 0 && (
                   <div style={{
                     position: 'absolute',
@@ -419,45 +397,71 @@ const Chats: React.FC = () => {
             initial={{ opacity: 0, x: 300 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 300 }}
-            className="flex-1 flex flex-col bg-white"
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundColor: 'white'
+            }}
           >
             {/* Chat Header */}
-            <div className="p-4 border-b border-slate-200 bg-white">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  {selectedChat && (
-                    <button
-                      onClick={() => setSelectedChat(null)}
-                      className="md:hidden p-2 hover:bg-slate-100 rounded-lg"
-                    >
-                      <ArrowLeft size={20} className="text-slate-600" />
-                    </button>
-                  )}
-                </div>
+            <div style={{
+              padding: '1rem',
+              borderBottom: '1px solid #e2e8f0',
+              backgroundColor: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button
+                  onClick={() => setSelectedChat(null)}
+                  style={{
+                    display: window.innerWidth < 768 ? 'block' : 'none',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0.25rem',
+                    color: '#64748b',
+                    borderRadius: '0.375rem'
+                  }}
+                >
+                  <ArrowLeft size={20} />
+                </button>
                 <div>
                   <h3 style={{
                     fontWeight: '600',
-                    color: '#1e293b'
+                    color: '#1e293b',
+                    margin: 0,
+                    fontSize: '1.125rem'
                   }}>{selectedChat.customerName}</h3>
                   <p style={{
                     fontSize: '0.875rem',
-                    color: '#64748b'
+                    color: '#64748b',
+                    margin: 0,
+                    marginTop: '0.125rem'
                   }}>{selectedChat.phone}</p>
                 </div>
               </div>
+              
               <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setSelectedChat(null)}
                 style={{
                   color: '#94a3b8',
-                  background: 'transparent',
+                  background: 'none',
                   border: 'none',
-                  padding: '0.25rem',
-                  borderRadius: '0.375rem',
+                  padding: '0.5rem',
+                  borderRadius: '50%',
                   cursor: 'pointer',
-                  transition: 'color 0.2s ease'
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'background-color 0.2s'
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
                 <X size={20} />
               </motion.button>
@@ -470,7 +474,8 @@ const Chats: React.FC = () => {
               padding: '1rem',
               display: 'flex',
               flexDirection: 'column',
-              gap: '1rem'
+              gap: '1rem',
+              backgroundColor: '#f8fafc'
             }}>
               {messages.map((message) => (
                 <motion.div
@@ -484,27 +489,33 @@ const Chats: React.FC = () => {
                   }}
                 >
                   <div style={{
-                    maxWidth: '20rem',
+                    maxWidth: '70%',
                     padding: '0.75rem 1rem',
                     borderRadius: '1rem',
+                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
                     ...(message.sender === 'user' ? {
                       background: '#4f46e5',
-                      color: 'white'
+                      color: 'white',
+                      borderBottomRightRadius: '0.25rem'
                     } : {
-                      background: '#f1f5f9',
-                      color: '#1e293b'
+                      background: 'white',
+                      color: '#1e293b',
+                      borderBottomLeftRadius: '0.25rem',
+                      border: '1px solid #e2e8f0'
                     })
                   }}>
-                    <p style={{ fontSize: '0.875rem' }}>{message.text}</p>
+                    <p style={{ fontSize: '0.9375rem', margin: 0, whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{message.text}</p>
                   </div>
                 </motion.div>
               ))}
+              <div ref={messagesEndRef} />
             </div>
 
             {/* Message Input */}
             <div style={{
               padding: '1rem',
-              borderTop: '1px solid #e2e8f0'
+              borderTop: '1px solid #e2e8f0',
+              backgroundColor: 'white'
             }}>
               <div style={{
                 display: 'flex',
@@ -522,24 +533,53 @@ const Chats: React.FC = () => {
                     padding: '0.75rem 1rem',
                     border: '1px solid #e2e8f0',
                     borderRadius: '0.75rem',
-                    backgroundColor: 'white',
+                    backgroundColor: '#f8fafc',
                     fontSize: '1rem',
                     color: '#1e293b',
-                    outline: 'none'
+                    outline: 'none',
+                    transition: 'border-color 0.2s'
                   }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = '#4f46e5'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
                 />
                 <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  style={{
+                    padding: '0.75rem',
+                    background: 'none',
+                    border: 'none',
+                    borderRadius: '0.75rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#64748b',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
-                  <Smile size={20} className="text-slate-600" />
+                  <Smile size={20} />
                 </motion.button>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={handleSendMessage}
-                  className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  style={{
+                    padding: '0.75rem',
+                    backgroundColor: '#4f46e5',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.75rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4338ca'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4f46e5'}
                 >
                   <Send size={20} />
                 </motion.button>

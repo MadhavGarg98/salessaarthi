@@ -1,9 +1,61 @@
-/**
- * Payment Processing Service for WhatsApp AI Sales Assistant
- * Handles UPI payment generation and confirmation with proper verification
- */
-
+const { db } = require('../firebase');
 const { FLOWS, STEPS } = require('./stateService');
+
+/**
+ * Get payment settings (UPI ID)
+ * @returns {Promise<Object>} Payment settings
+ */
+async function getPaymentSettings() {
+  try {
+    const settingsDoc = await db.collection('settings').doc('payment').get();
+    if (settingsDoc.exists) {
+      return settingsDoc.data();
+    }
+    return { upiId: "madhavgarg3300@okhdfcbank" };
+  } catch (error) {
+    console.error('Error fetching payment settings:', error);
+    return { upiId: "madhavgarg3300@okhdfcbank" };
+  }
+}
+
+/**
+ * Save payment settings (UPI ID)
+ * @param {string} upiId - UPI ID to save
+ * @returns {Promise<boolean>} Success status
+ */
+async function savePaymentSettings(upiId) {
+  try {
+    await db.collection('settings').doc('payment').set({
+      upiId,
+      updatedAt: new Date()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving payment settings:', error);
+    return false;
+  }
+}
+
+/**
+ * Get the current UPI ID
+ * @returns {Promise<string>} UPI ID
+ */
+async function getUPIId() {
+  const settings = await getPaymentSettings();
+  return settings.upiId;
+}
+
+/**
+ * Generate UPI payment link
+ * @param {string} upiId - UPI ID
+ * @param {number} amount - Amount
+ * @param {string} productName - Product name
+ * @returns {string} UPI link
+ */
+function generateUPILink(upiId, amount, productName) {
+  const orderId = generateOrderId();
+  return `upi://pay?pa=${upiId}&pn=SalesSaarthi&am=${amount}&cu=INR&tn=${encodeURIComponent(productName + ' - ' + orderId)}`;
+}
 
 /**
  * Generate UPI payment details
@@ -147,6 +199,8 @@ function validatePaymentMessage(message) {
     };
   }
   
+  // Also check if the 4-digit code matches the last 4 digits of the phone number
+  // (We'll just return it and let the controller handle verification if needed)
   return {
     isValid: true,
     code: match[1]
@@ -165,25 +219,52 @@ function simulateVerificationDelay(seconds = 3) {
 }
 
 /**
- * Store order data (in production, use database)
+ * Store order data in Firebase database
  * @param {Object} orderData - Complete order data
- * @returns {Object} Stored order
+ * @returns {Promise<Object>} Stored order
  */
-function storeOrder(orderData) {
-  // In production, store in database
-  const order = {
-    id: orderData.orderId,
-    ...orderData,
-    status: 'confirmed',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-  
-  console.log('Order stored:', order);
-  return order;
+async function storeOrder(orderData) {
+  try {
+    const { createOrder, markOrderAsPaid } = require('./orderService');
+    
+    // First create the order
+    const orderId = await createOrder(orderData);
+    
+    // Then mark it as paid since payment was successful
+    await markOrderAsPaid(orderId);
+    
+    const order = {
+      id: orderId,
+      orderId: orderData.orderId,
+      ...orderData,
+      status: 'paid',
+      paymentStatus: 'completed',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    console.log('Order stored in database:', order);
+    return order;
+  } catch (error) {
+    console.error('Error storing order:', error);
+    // Fallback to console log if database fails
+    const order = {
+      id: orderData.orderId,
+      ...orderData,
+      status: 'confirmed',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    console.log('Order stored (fallback):', order);
+    return order;
+  }
 }
 
 module.exports = {
+  getPaymentSettings,
+  savePaymentSettings,
+  getUPIId,
+  generateUPILink,
   generatePaymentDetails,
   processPaymentConfirmation,
   generateOrderConfirmation,
